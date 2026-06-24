@@ -6,6 +6,10 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 # In-memory storage for tasks
 tasks = {}
 
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
 @app.route('/')
 def index():
     return render_template('index.html')

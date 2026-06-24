@@ -1,78 +1,145 @@
 <div align="center">
-    <img src="./app/static/images/coderco_logo.jpeg" alt="CoderCo" width="300"/>
+  <img src="./app/static/images/coderco_logo.jpeg" alt="CoderCo" width="300"/>
 </div>
 
-# Project: CoderCo Assignment 1 - Open Source App Hosted on Azure with Terraform 🚀
+# CoderCo Task Manager — Azure Deployment
 
-## Overview
+A Flask task manager app containerised with Docker and deployed on Azure using Terraform and GitHub Actions CI/CD.
 
-This project mirrors the AWS ECS-based setup, but we will now deploy the open-source app on Azure using Azure Container Apps. 
+Live at: **https://tm.labs.\<yourdomain\>.co.uk**
 
-The goal is to package, build, and deploy an application using Terraform and CI/CD pipelines, ensuring best practices in infrastructure as code, security, and scalability.
+---
 
-Key Components:
-- Azure Container Registry (ACR) for container images.
-- Azure Container Apps (or AKS) to run containers.
-- Azure Application Gateway or Front Door for HTTPS routing.
-- GitHub Actions or Azure DevOps for CI/CD (your choice).
+## Architecture
 
-## Task/Assignment 📝
+```mermaid
+flowchart TD
+    Dev["👨‍💻 Developer\nPush to main"]
 
-- Create a repository for your work.
-- Containerize the app and push it to Azure Container Registry (ACR).
-- Use a CI/CD pipeline (GitHub Actions, Azure DevOps, or another) to build, test, and push the container image.
-- Deploy the app on Azure using Terraform:
-  - Azure Container Apps
-- Expose the application via HTTPS using Azure Application Gateway or Azure Front Door.
-- Ensure the app is available at:
-  - https://tm.<your-domain>.co.uk or
-  - https://tm.labs.<your-domain>.co.uk
-- Add screenshots of the live app to the README.md.
-- Include an architecture diagram of your infrastructure (Lucidchart, draw.io, or Mermaid).
+    subgraph CICD["GitHub Actions"]
+        T["🧪 Test"]
+        B["🐳 Build & Push"]
+        A["🚀 Terraform Apply"]
+        T --> B --> A
+    end
 
-## Guidance & Hints 📚
+    subgraph AZURE["Azure (UK South)"]
+        ACR["Container Registry"]
+        CA["Container App"]
+        FD["Front Door (HTTPS)"]
+        LAW["Log Analytics"]
+    end
 
-### Directory Structure
+    DNS["DNS\ntm.labs.yourdomain.co.uk"]
+    User["👤 User"]
 
-- `terraform/` - Terraform configuration for Azure resources. Use modules for reusable components.
-- `app/` -  App code and Dockerfile.
-- `.github/workflows/` - CI/CD pipeline configuration (GitHub Actions). Or any other CI/CD tool you want to use.
-- `docs/` - Documentation for the project. Diagrams/Architectures.
-- `README.md` - Project documentation.
+    Dev --> CICD
+    CICD --> ACR
+    CICD --> AZURE
+    ACR --> CA
+    CA --> LAW
+    FD --> CA
+    DNS --> FD
+    User --> DNS
+```
 
-### Local app 💻
+See [docs/architecture.md](docs/architecture.md) for full component breakdown.
+
+---
+
+## Stack
+
+| Component | Technology |
+|---|---|
+| App | Python / Flask |
+| Container image | Docker → Azure Container Registry |
+| Compute | Azure Container Apps |
+| HTTPS / CDN | Azure Front Door (Standard) |
+| Networking | Azure VNet + dedicated subnet |
+| Observability | Log Analytics Workspace |
+| IaC | Terraform (azurerm ~> 3.110) |
+| CI/CD | GitHub Actions |
+
+---
+
+## CI/CD Pipeline
+
+Every push to `main` runs three jobs in sequence:
+
+1. **Test** — installs dependencies, runs `pytest` against `app/tests/`
+2. **Build & Push** — logs into ACR via OIDC, builds the Docker image tagged with the short commit SHA, pushes both `:<sha>` and `:latest`
+3. **Terraform Apply** — runs `terraform apply` passing the new image tag so the Container App rolls to the new revision automatically
+
+Required GitHub Secrets:
+
+| Secret | Description |
+|---|---|
+| `AZURE_CLIENT_ID` | Service principal client ID (OIDC) |
+| `AZURE_TENANT_ID` | Azure AD tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
+| `ACR_NAME` | ACR registry name, e.g. `codercotmprodacr` |
+
+---
+
+## Infrastructure
+
+```
+terraform/
+  environments/prod/   # root module — resource group, wires modules together
+  modules/
+    networking/        # VNet + Container Apps subnet (/23)
+    acr/               # Azure Container Registry (Basic, managed identity)
+    container-app/     # Log Analytics, CAE, identity, role assignment, Container App
+    frontdoor/         # Front Door profile, endpoint, origin, route, custom domain
+```
+
+### First-time deploy
+
+```bash
+cd terraform/environments/prod
+terraform init
+terraform plan
+terraform apply
+```
+
+### Bootstrap Docker image
+
+```bash
+ACR_NAME="codercotmprodacr"
+az acr login --name $ACR_NAME
+docker build -t ${ACR_NAME}.azurecr.io/task-manager:latest app/
+docker push ${ACR_NAME}.azurecr.io/task-manager:latest
+```
+
+---
+
+## Running Locally
 
 ```bash
 cd app
-
-### create a virtual environment
-python3 -m venv .venv
-
-source .venv/bin/activate
-pip3 install -r requirements.txt
-### run the app
-python3 app.py ## python3 app.py
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 app.py
 ```
 
-### API
+App runs at http://localhost:3000
 
 ```bash
-# Create task
-curl -X POST -H "Content-Type: application/json" -d '{"title":"New Task"}' http://localhost:3000/tasks
+# Create a task
+curl -X POST http://localhost:3000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"My first task"}'
 
 # List tasks
 curl http://localhost:3000/tasks
-
-# Update task
-curl -X PUT -H "Content-Type: application/json" -d '{"completed":true}' http://localhost:3000/tasks/1
-
-# Delete task
-curl -X DELETE http://localhost:3000/tasks/1
 ```
+
+---
 
 ## Screenshots
 
-Add screenshots of your deployed application here. For example:
+### Home Page
+![Home page](docs/screenshots/home.png)
 
-- Home Page
-- Task Manager in Action
+### Task Manager in Action
+![Tasks](docs/screenshots/tasks.png)
