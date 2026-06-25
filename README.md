@@ -6,7 +6,7 @@
 
 A Flask task manager app containerised with Docker and deployed on Azure using Terraform and GitHub Actions CI/CD.
 
-Live at: **https://tm.labs.\<yourdomain\>.co.uk**
+Live at: **https://coderco-tm-prod-ep-hhg7b8c5cdfyegbk.z03.azurefd.net**
 
 ---
 
