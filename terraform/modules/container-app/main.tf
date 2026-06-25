@@ -12,7 +12,6 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name        = var.resource_group_name
   location                   = var.location
   log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
-  infrastructure_subnet_id   = var.subnet_id != "" ? var.subnet_id : null
   tags                       = var.tags
 }
 
